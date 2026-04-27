@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini God Mode Injector (Windows)",
+  "version": "7.2",
+  "description": "ローカルのWindows環境とGeminiを完全リンクさせる最強のハッキングツール",
+  "permissions": [
+    "clipboardRead"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/app*"],
+      "js": ["content.js"]
+    }
+  ]
+}
