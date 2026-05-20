@@ -69,19 +69,24 @@ async function handleApply(skipGit) {
     const codeBlocks = document.querySelectorAll('code');
     let updatedCount = 0;
     
-    // ★ V7.5.3: for...of ではなく、DOMのインデックス(i)を使うループに変更
-    for (let i = 0; i < codeBlocks.length; i++) {
-        const block = codeBlocks[i];
+    // DOMのインデックス(i)依存を廃止し、再び for...of に戻す
+    for (const block of codeBlocks) {
         const codeText = block.innerText;
-        
         const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
         if (!match) continue;
 
         const action = match[1];
         const filePath = match[2].trim();
         
-        // ★ ここが超重要: ページ内の「何番目のコードブロックか(i)」をキーに混ぜて、完全に独立したIDにする！
-        const cacheKey = 'applied_hack_' + i + '_' + hashCode(codeText);
+        // ★ V7.5.4 神機能: 文脈（AIの直前の発言）を読み取ってハッシュに混ぜる！
+        let contextText = "";
+        const preTag = block.closest('pre');
+        if (preTag && preTag.previousElementSibling) {
+            contextText = preTag.previousElementSibling.innerText || "";
+        } else if (preTag && preTag.parentElement) {
+            contextText = preTag.parentElement.innerText.substring(0, 100);
+        }
+        const cacheKey = 'applied_hack_' + hashCode(contextText + codeText);
         
         const status = localStorage.getItem(cacheKey) || block.dataset.applied;
         if (status === 'true' || status === 'rejected') {
@@ -191,17 +196,23 @@ imageButton.addEventListener('click', async () => {
 setInterval(() => {
     const codeBlocks = document.querySelectorAll('code');
     
-    // ★ V7.5.3: ここもDOMのインデックス(i)を使う
-    for (let i = 0; i < codeBlocks.length; i++) {
-        const block = codeBlocks[i];
+    for (const block of codeBlocks) {
         const codeText = block.innerText;
-        
         const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
         if (!match) continue;
 
         const action = match[1];
-        // インデックスをキーに含める
-        const cacheKey = 'applied_hack_' + i + '_' + hashCode(codeText);
+        
+        // ★ V7.5.4: 監視デーモン側でも文脈ハッシュを使う
+        let contextText = "";
+        const preTag = block.closest('pre');
+        if (preTag && preTag.previousElementSibling) {
+            contextText = preTag.previousElementSibling.innerText || "";
+        } else if (preTag && preTag.parentElement) {
+            contextText = preTag.parentElement.innerText.substring(0, 100);
+        }
+        const cacheKey = 'applied_hack_' + hashCode(contextText + codeText);
+        
         const status = localStorage.getItem(cacheKey);
 
         if (!block.dataset.hasRejectBtn) {
@@ -211,12 +222,10 @@ setInterval(() => {
             rejectBtn.innerText = '❌ このコードを却下';
             rejectBtn.style.cssText = 'display:inline-block; margin-bottom:8px; padding:6px 12px; background:#ea4335; color:white; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:0.2s;';
             
-            // ★ V7.5.3 神機能：却下ボタンのトグル（解除）処理
             rejectBtn.onclick = () => {
                 const currentStatus = localStorage.getItem(cacheKey) || block.dataset.applied;
                 
                 if (currentStatus === 'rejected') {
-                    // 却下を解除して、再び適用対象に戻す
                     localStorage.removeItem(cacheKey);
                     block.dataset.applied = 'false';
                     block.style.borderLeft = 'none';
@@ -224,7 +233,6 @@ setInterval(() => {
                     rejectBtn.innerText = '❌ このコードを却下';
                     rejectBtn.style.background = '#ea4335';
                 } else {
-                    // 却下する
                     localStorage.setItem(cacheKey, 'rejected');
                     block.dataset.applied = 'rejected';
                     block.style.borderLeft = '5px solid #ea4335';
