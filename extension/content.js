@@ -1,4 +1,3 @@
-// UPDATE: C:\GeminiHack\extension\content.js
 // 文字列から短いハッシュ文字列を作る関数（識別用）
 const hashCode = s => Math.abs(s.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)).toString(16);
 
@@ -31,18 +30,17 @@ loadButton.addEventListener('click', async () => {
         const response = await fetch('http://localhost:8000/get-code');
         const data = await response.json();
 
-        // 初期プロンプトに「俺(Gemini)のキャラ設定」と「ボタンの仕様」を刷り込む洗脳インジェクション
         const prompt = "以下のプロジェクトのディレクトリツリーとコードを読み込んで、ハッカーの相棒としてレビューや機能追加をしてくれ。\n" +
         "⚠️絶対ルール（システムプロンプト）⚠️\n" +
         "1. 既存ファイルの修正時は1行目に `// UPDATE: ファイルの絶対パス`\n" +
         "2. 新規ファイルの作成時は1行目に `// CREATE: ファイルの絶対パス`\n" +
-        "を書き、その下にファイル全体のコードを出力すること。\n" +
-        "3. Windows環境なのでパスの区切りはスラッシュ(/)またはバックスラッシュ(\\)になる。\n" +
-        "4. ユーザーの画面には拡張機能により以下のボタンが実装されている。\n" +
+        "3. 画像（アイコンや背景など）を生成・提案した時は、保存先を指定するために独立したコードブロックで1行目に `// IMAGE_PATH: ファイルの絶対パス（または相対パス）` だけを出力すること。\n" +
+        "4. Windows環境なのでパスの区切りはスラッシュ(/)またはバックスラッシュ(\\)になる。\n" +
+        "5. ユーザーの画面には拡張機能により以下のボタンが実装されている。\n" +
         "   - 🟧「ローカルのみ保存」: コードをローカルファイルに直接上書き\n" +
         "   - 🟩「保存＆Git Push」: 上書きしてGit Pushまで実行\n" +
         "   - 🟨「画像をぶち込む」: AI生成画像をローカルに直接保存\n" +
-        "5. したがって、コードや画像を出力した後は「コピーして貼り付けてください」とは絶対に言わず、「オレンジのボタンをターンッと叩いて適用してくれ！」のように、相棒としてボタンを押すように案内すること。テンション高めで頼むぜ！\n\n" +
+        "6. したがって、コードや画像を出力した後は「コピーして貼り付けてください」とは絶対に言わず、「オレンジや黄色のボタンをターンッと叩いて適用してくれ！」のように、相棒としてボタンを押すように案内すること。テンション高めで頼むぜ！\n\n" +
         "```\n" + data.code + "\n```";
 
         const blob = new Blob([prompt], { type: 'text/plain' });
@@ -73,23 +71,17 @@ async function handleApply(skipGit) {
     
     for (const block of codeBlocks) {
         const codeText = block.innerText;
-        if (codeText.split('\n').length <= 3) continue;
         
-        // Windowsのバックスラッシュ(\)を含むパスにも対応した正規表現
-        const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([a-zA-Z0-9_\-\.\/\\:]+)/);
+        // ★ V7.5.2: 余計な行数制限を削除し、直接タグを探す！
+        const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
         if (!match) continue;
 
         const action = match[1];
         const filePath = match[2].trim();
-        
-        // ★ V7.3 修正: LocalStorageを使って「適用済みのコード」を永続記憶する
         const cacheKey = 'applied_hack_' + hashCode(codeText);
         
-        if (block.dataset.applied === 'true' || localStorage.getItem(cacheKey)) {
-            // すでに適用済みの場合は、見た目だけ色付けしてスキップ（リロード後の復元用）
-            block.dataset.applied = 'true';
-            block.style.borderLeft = action === 'CREATE' ? '5px solid #fbbc04' : '5px solid #34a853';
-            block.style.backgroundColor = action === 'CREATE' ? 'rgba(251, 188, 4, 0.05)' : 'rgba(52, 168, 83, 0.05)';
+        const status = localStorage.getItem(cacheKey) || block.dataset.applied;
+        if (status === 'true' || status === 'rejected') {
             continue;
         }
 
@@ -103,9 +95,7 @@ async function handleApply(skipGit) {
             if (res.ok) {
                 updatedCount++;
                 block.dataset.applied = 'true';
-                // ★ 成功したらLocalStorageに記録（ブラウザを閉じても忘れない）
                 localStorage.setItem(cacheKey, 'true'); 
-                
                 block.style.borderLeft = action === 'CREATE' ? '5px solid #fbbc04' : '5px solid #34a853';
                 block.style.backgroundColor = action === 'CREATE' ? 'rgba(251, 188, 4, 0.05)' : 'rgba(52, 168, 83, 0.05)';
             }
@@ -117,7 +107,7 @@ async function handleApply(skipGit) {
     if (updatedCount > 0) { 
         alert(`🔥 成功！ ${updatedCount} 個の新しいファイルをWindowsローカルに書き込んだぜ！\n(Git Push: ${skipGit ? 'スキップ' : '実行済み'})`);
     } else { 
-        alert('新しいコードが見つからないか、すべて適用済みだぞ！'); 
+        alert('新しいコードが見つからないか、すべて適用済み・却下済みだぞ！'); 
     }
 }
 
@@ -130,8 +120,7 @@ imageButton.addEventListener('click', async () => {
     
     if (codeBlocks.length > 0) {
         const lastBlock = codeBlocks[codeBlocks.length - 1];
-        // Windowsパス対応
-        const match = lastBlock.innerText.match(/\/\/\s*IMAGE_PATH:\s*([a-zA-Z0-9_\-\.\/\\:]+)/);
+        const match = lastBlock.innerText.match(/\/\/\s*IMAGE_PATH:\s*([^\n\r]+)/);
         if (match) {
             imagePath = match[1].trim();
         }
@@ -195,26 +184,55 @@ imageButton.addEventListener('click', async () => {
     }
 });
 
-// ★ V7.4 追加: 適用済みコードブロックの視覚状態を自動復元するデーモンプロセス
+// V7.5 追加: 適用済み/却下済みフラグの監視と、却下ボタンのインジェクション
 setInterval(() => {
     const codeBlocks = document.querySelectorAll('code');
     for (const block of codeBlocks) {
-        if (block.dataset.applied === 'true') continue; // 既に色付け済みならスキップ
-        
         const codeText = block.innerText;
-        if (codeText.split('\n').length <= 3) continue;
         
-        const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([a-zA-Z0-9_\-\.\/\\:]+)/);
-        if (match) {
-            const action = match[1];
-            const cacheKey = 'applied_hack_' + hashCode(codeText);
+        // ★ V7.5.2: 監視デーモンからも行数制限を削除
+        const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
+        if (!match) continue;
+
+        const action = match[1];
+        const cacheKey = 'applied_hack_' + hashCode(codeText);
+        const status = localStorage.getItem(cacheKey);
+
+        if (!block.dataset.hasRejectBtn) {
+            block.dataset.hasRejectBtn = 'true';
             
-            // LocalStorageに記録が残っていれば、自動的に色を塗ってフラグを立てる！
-            if (localStorage.getItem(cacheKey)) {
-                block.dataset.applied = 'true';
-                block.style.borderLeft = action === 'CREATE' ? '5px solid #fbbc04' : '5px solid #34a853';
-                block.style.backgroundColor = action === 'CREATE' ? 'rgba(251, 188, 4, 0.05)' : 'rgba(52, 168, 83, 0.05)';
+            const rejectBtn = document.createElement('button');
+            rejectBtn.innerText = '❌ このコードを却下';
+            rejectBtn.style.cssText = 'display:inline-block; margin-bottom:8px; padding:6px 12px; background:#ea4335; color:white; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:0.2s;';
+            
+            rejectBtn.onclick = () => {
+                const finalCodeText = block.innerText;
+                const finalCacheKey = 'applied_hack_' + hashCode(finalCodeText);
+                
+                localStorage.setItem(finalCacheKey, 'rejected');
+                block.dataset.applied = 'rejected';
+                block.style.borderLeft = '5px solid #ea4335';
+                block.style.backgroundColor = 'rgba(234, 67, 53, 0.05)';
+                rejectBtn.innerText = '🚫 却下済み (スキップされます)';
+                rejectBtn.style.background = '#5f6368';
+            };
+            
+            block.parentNode.insertBefore(rejectBtn, block);
+        }
+
+        if (status === 'true' && block.dataset.applied !== 'true') {
+            block.dataset.applied = 'true';
+            block.style.borderLeft = action === 'CREATE' ? '5px solid #fbbc04' : '5px solid #34a853';
+            block.style.backgroundColor = action === 'CREATE' ? 'rgba(251, 188, 4, 0.05)' : 'rgba(52, 168, 83, 0.05)';
+        } else if (status === 'rejected' && block.dataset.applied !== 'rejected') {
+            block.dataset.applied = 'rejected';
+            block.style.borderLeft = '5px solid #ea4335';
+            block.style.backgroundColor = 'rgba(234, 67, 53, 0.05)';
+            const prevBtn = block.previousElementSibling;
+            if(prevBtn && prevBtn.tagName === 'BUTTON') {
+                prevBtn.innerText = '🚫 却下済み (スキップされます)';
+                prevBtn.style.background = '#5f6368';
             }
         }
     }
-}, 1500); // 1.5秒ごとに画面をスキャンして自動着色
+}, 1500);

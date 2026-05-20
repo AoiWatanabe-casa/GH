@@ -10,7 +10,7 @@ import base64
 raw_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
 TARGET_DIR = os.path.normpath(os.path.abspath(raw_dir))
 
-ALLOWED_EXTENSIONS = ('.swift', '.h', '.m', '.kt', '.kts', '.java', '.xml', '.gradle', '.toml', '.json', '.md', '.yaml', '.yml', '.py', '.js', '.html', '.css')
+ALLOWED_EXTENSIONS = ('.swift', '.h', '.m', '.kt', '.kts', '.java', '.xml', '.gradle', '.toml', '.json', '.md', '.yaml', '.yml', '.py', '.js', '.html', '.css', '.adoc')
 IGNORE_DIRS = ['build', 'DerivedData', 'Pods', '.gradle', '.idea', 'iosApp.xcodeproj', 'iosApp.xcworkspace', 'node_modules', '.git']
 
 class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
