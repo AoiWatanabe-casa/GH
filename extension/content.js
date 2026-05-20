@@ -69,16 +69,19 @@ async function handleApply(skipGit) {
     const codeBlocks = document.querySelectorAll('code');
     let updatedCount = 0;
     
-    for (const block of codeBlocks) {
+    // ★ V7.5.3: for...of ではなく、DOMのインデックス(i)を使うループに変更
+    for (let i = 0; i < codeBlocks.length; i++) {
+        const block = codeBlocks[i];
         const codeText = block.innerText;
         
-        // ★ V7.5.2: 余計な行数制限を削除し、直接タグを探す！
         const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
         if (!match) continue;
 
         const action = match[1];
         const filePath = match[2].trim();
-        const cacheKey = 'applied_hack_' + hashCode(codeText);
+        
+        // ★ ここが超重要: ページ内の「何番目のコードブロックか(i)」をキーに混ぜて、完全に独立したIDにする！
+        const cacheKey = 'applied_hack_' + i + '_' + hashCode(codeText);
         
         const status = localStorage.getItem(cacheKey) || block.dataset.applied;
         if (status === 'true' || status === 'rejected') {
@@ -184,18 +187,21 @@ imageButton.addEventListener('click', async () => {
     }
 });
 
-// V7.5 追加: 適用済み/却下済みフラグの監視と、却下ボタンのインジェクション
+// 適用済み/却下済みフラグの監視と、却下ボタンのインジェクション
 setInterval(() => {
     const codeBlocks = document.querySelectorAll('code');
-    for (const block of codeBlocks) {
+    
+    // ★ V7.5.3: ここもDOMのインデックス(i)を使う
+    for (let i = 0; i < codeBlocks.length; i++) {
+        const block = codeBlocks[i];
         const codeText = block.innerText;
         
-        // ★ V7.5.2: 監視デーモンからも行数制限を削除
         const match = codeText.match(/\/\/\s*(UPDATE|CREATE):\s*([^\n\r]+)/);
         if (!match) continue;
 
         const action = match[1];
-        const cacheKey = 'applied_hack_' + hashCode(codeText);
+        // インデックスをキーに含める
+        const cacheKey = 'applied_hack_' + i + '_' + hashCode(codeText);
         const status = localStorage.getItem(cacheKey);
 
         if (!block.dataset.hasRejectBtn) {
@@ -205,21 +211,33 @@ setInterval(() => {
             rejectBtn.innerText = '❌ このコードを却下';
             rejectBtn.style.cssText = 'display:inline-block; margin-bottom:8px; padding:6px 12px; background:#ea4335; color:white; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:0.2s;';
             
+            // ★ V7.5.3 神機能：却下ボタンのトグル（解除）処理
             rejectBtn.onclick = () => {
-                const finalCodeText = block.innerText;
-                const finalCacheKey = 'applied_hack_' + hashCode(finalCodeText);
+                const currentStatus = localStorage.getItem(cacheKey) || block.dataset.applied;
                 
-                localStorage.setItem(finalCacheKey, 'rejected');
-                block.dataset.applied = 'rejected';
-                block.style.borderLeft = '5px solid #ea4335';
-                block.style.backgroundColor = 'rgba(234, 67, 53, 0.05)';
-                rejectBtn.innerText = '🚫 却下済み (スキップされます)';
-                rejectBtn.style.background = '#5f6368';
+                if (currentStatus === 'rejected') {
+                    // 却下を解除して、再び適用対象に戻す
+                    localStorage.removeItem(cacheKey);
+                    block.dataset.applied = 'false';
+                    block.style.borderLeft = 'none';
+                    block.style.backgroundColor = 'transparent';
+                    rejectBtn.innerText = '❌ このコードを却下';
+                    rejectBtn.style.background = '#ea4335';
+                } else {
+                    // 却下する
+                    localStorage.setItem(cacheKey, 'rejected');
+                    block.dataset.applied = 'rejected';
+                    block.style.borderLeft = '5px solid #ea4335';
+                    block.style.backgroundColor = 'rgba(234, 67, 53, 0.05)';
+                    rejectBtn.innerText = '🔄 却下を解除 (適用対象に戻す)';
+                    rejectBtn.style.background = '#5f6368';
+                }
             };
             
             block.parentNode.insertBefore(rejectBtn, block);
         }
 
+        // 自動復元処理
         if (status === 'true' && block.dataset.applied !== 'true') {
             block.dataset.applied = 'true';
             block.style.borderLeft = action === 'CREATE' ? '5px solid #fbbc04' : '5px solid #34a853';
@@ -230,7 +248,7 @@ setInterval(() => {
             block.style.backgroundColor = 'rgba(234, 67, 53, 0.05)';
             const prevBtn = block.previousElementSibling;
             if(prevBtn && prevBtn.tagName === 'BUTTON') {
-                prevBtn.innerText = '🚫 却下済み (スキップされます)';
+                prevBtn.innerText = '🔄 却下を解除 (適用対象に戻す)';
                 prevBtn.style.background = '#5f6368';
             }
         }
