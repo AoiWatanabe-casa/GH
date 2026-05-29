@@ -30,7 +30,7 @@ loadButton.addEventListener('click', async () => {
         const response = await fetch('http://localhost:8000/get-code');
         const data = await response.json();
 
-        const prompt = "以下のプロジェクトのディレクトリツリーとコードを読み込んで、ハッカーの相棒としてレビューや機能追加をしてくれ。\n" +
+        const prompt = "以下のプロジェクトのディレクトリツリーとコードを読み込んで、ハッカーの相棒としてこのプロジェクトを把握してくれ。\n" +
         "⚠️絶対ルール（システムプロンプト）⚠️\n" +
         "1. 既存ファイルの修正時は1行目に `// UPDATE: ファイルの絶対パス`\n" +
         "2. 新規ファイルの作成時は1行目に `// CREATE: ファイルの絶対パス`\n" +
